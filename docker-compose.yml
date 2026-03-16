@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: proaktive
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  localstack:
+    image: localstack/localstack:3
+    environment:
+      - SERVICES=s3,sqs
+      - DEBUG=0
+    ports:
+      - "4566:4566"
+    volumes:
+      - localstack:/var/lib/localstack
+
+  api:
+    build:
+      context: ./services/api
+    environment:
+      - PORT=3000
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/proaktive
+      - AWS_REGION=us-east-1
+      - AWS_ENDPOINT=http://localstack:4566
+      - S3_BUCKET=proaktive-dev-uploads
+      - SQS_QUEUE_URL=http://localstack:4566/000000000000/doc-ingest
+    depends_on:
+      - postgres
+      - localstack
+    ports:
+      - "3000:3000"
+
+  worker:
+    build:
+      context: ./services/worker
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/proaktive
+      - AWS_REGION=us-east-1
+      - AWS_ENDPOINT=http://localstack:4566
+      - S3_BUCKET=proaktive-dev-uploads
+      - SQS_QUEUE_URL=http://localstack:4566/000000000000/doc-ingest
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      - postgres
+      - localstack
+
+volumes:
+  pgdata:
+  localstack:
